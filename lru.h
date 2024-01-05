@@ -40,15 +40,15 @@ namespace caches {
 
 
         // PRECOND: key doesn't exist in the list of pages
-        // INVARIANT: pages_.size() <= size_
-        hash_mapped_type insert (const key_type& new_key,
-                                 mapped_type& new_mapped) // should I copy new_key and new_mapped??
+        // INVARIANT: pages_.size() <= size_ && LRU is always at the top
+        iterator insert (const key_type& new_key,
+                                 mapped_type& new_mapped)
         {
             // check PRECOND
             assert(hash_.find(new_key) == hash_.end());
 
             if (cache_.size() == cache_size) { // cache is full
-                // remove lowest priority key before
+                // remove the lowest priority key before
                 hash_.erase(hash_.find( cache_.back().first ));
                 cache_.pop_back();
             }
