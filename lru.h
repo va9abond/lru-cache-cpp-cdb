@@ -17,30 +17,23 @@ namespace alias {
 
 namespace caches {
 
-    // TODO: does I really need to store size_ manually?
-    //       so can I done cache just using tsize?
     template <typename key_ty, typename ty, int tsize>
     class lru_cache {
     public:
-        using key_type = key_ty; // cache_key_type
+        using key_type    = key_ty; // cache_key_type
         using mapped_type = ty;  // cache_mapped_type
-        using reference = mapped_type&; // cache_reference
-        using value_type = std::pair<const key_ty, ty>; // cache_value_type
+        using reference   = mapped_type&; // cache_reference
+        using value_type  = std::pair<const key_ty, ty>; // cache_value_type
 
-        using hash_key_type = key_type;
-        using hash_mapped_type = std::list<value_type>::iterator;
-
-private:
-        using hash_value_type = std::pair<const hash_key_type, hash_mapped_type>;
         using iterator = std::list<value_type>::iterator;
-        using const_iterator = std::list<value_type>::const_iterator;
-        using hash_iterator = alias::unmap<hash_key_type, hash_mapped_type>::iterator;
-        using hash_const_iterator = alias::unmap<
-            hash_key_type, hash_mapped_type
-        >::const_iterator;
 
-public:
-        lru_cache() : size_(tsize), cache_(0), hash_table_(0) {}
+    private:
+        using hash_key_type    = key_type;
+        using hash_mapped_type = std::list<value_type>::iterator;
+        using hash_value_type  = std::pair<const hash_key_type, hash_mapped_type>;
+
+    public:
+        lru_cache() : size_(tsize), cache_(0), hash_(0) {}
 
         lru_cache (const lru_cache&) = delete;
         lru_cache& operator= (const lru_cache&) = delete;
@@ -52,32 +45,32 @@ public:
                                  mapped_type& new_mapped) // should I copy new_key and new_mapped??
         {
             // check PRECOND
-            assert(hash_table_.find(new_key) == hash_table_.end());
+            assert(hash_.find(new_key) == hash_.end());
 
             if (cache_.size() == size_) { // cache is full
                 // remove lowest priority key before
-                hash_table_.erase(hash_table_.find( cache_.back().first ));
+                hash_.erase(hash_.find( cache_.back().first ));
                 cache_.pop_back();
             }
 
             const auto cache_loc = cache_.insert(
                     cache_.begin(), {new_key, new_mapped}
             );
-            hash_table_.insert({new_key, cache_loc});
+            hash_.insert({new_key, cache_loc});
 
             return cache_loc;
         }
 
         // check does key in cache
         bool check (const key_type& key) const {
-            const auto it = hash_table_.find(key);
-            return it != hash_table_.end();
+            const auto it = hash_.find(key);
+            return it != hash_.end();
         }
 
         // promote key as highest priority element
         // PRECOND: key exists in the cache
         void promote (const key_type& cached_key) {
-            auto hash_loc = hash_table_.find(cached_key);
+            auto hash_loc = hash_.find(cached_key);
 
             hash_mapped_type cache_loc = cache_.insert(
                     cache_.begin(), *(hash_loc->second)
@@ -88,7 +81,7 @@ public:
         }
 
         reference cached (const key_type& cached_key) {
-            auto cache_loc = hash_table_.find(cached_key)->second;
+            auto cache_loc = hash_.find(cached_key)->second;
             promote(cached_key);
             return cache_loc->second;
         }
@@ -110,7 +103,7 @@ public:
         alias::unmap<
             hash_key_type,
             hash_mapped_type
-        > hash_table_;
+        > hash_;
     };
 
 } // namespace caches
