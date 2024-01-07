@@ -41,8 +41,10 @@ namespace caches {
 
         // PRECOND: key doesn't exist in the list of pages
         // INVARIANT: pages_.size() <= size_ && LRU is always at the top
-        iterator insert (const key_type& new_key,
-                                 mapped_type& new_mapped)
+        template <typename pred_ty>
+        iterator push (const key_type& new_key,
+                       pred_ty pred)
+        // COND: pred_ty(key_type) --> mapped_type
         {
             // check PRECOND
             assert(hash_.find(new_key) == hash_.end());
@@ -54,7 +56,7 @@ namespace caches {
             }
 
             const auto cache_loc = cache_.insert(
-                    cache_.begin(), {new_key, new_mapped}
+                    cache_.begin(), {new_key, pred(new_key)}
             );
             hash_.insert({new_key, cache_loc});
 
