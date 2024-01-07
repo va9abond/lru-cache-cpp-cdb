@@ -4,7 +4,6 @@
 
 #include <unordered_map>
 #include <list>
-#include <cassert>
 #include <iostream>
 #include <format>
 
@@ -19,11 +18,12 @@ namespace caches {
 
     template <typename key_ty, typename ty, size_t cache_size>
     class lru_cache {
+    // INVARIANT: cache_.size() <= size_ && LRU is always at the top
     public:
         using key_type    = key_ty; // cache_key_type
         using mapped_type = ty; // cache_mapped_type
         using reference   = mapped_type&; // cache_reference
-        using value_type  = std::pair<const key_ty, ty>; // cache_value_type
+        using value_type  = std::pair<const key_ty, const ty>; // cache_value_type
 
         using iterator = typename std::list<value_type>::iterator;
 
@@ -39,28 +39,39 @@ namespace caches {
         lru_cache& operator= (const lru_cache&) = delete;
 
 
-        // PRECOND: key doesn't exist in the list of pages
-        // INVARIANT: pages_.size() <= size_ && LRU is always at the top
         template <typename pred_ty>
-        iterator push (const key_type& new_key,
-                       pred_ty pred)
-        // COND: pred_ty(key_type) --> mapped_type
+        mapped_type lookup_update (const key_type& key,
+                                   pred_ty pred) // COND: pred_ty(key_type) --> mapped_type
         {
-            // check PRECOND
-            assert(hash_.find(new_key) == hash_.end());
+            auto hash_loc = hash_.find(key);
 
-            if (cache_.size() == cache_size) { // cache is full
-                // remove the lowest priority key before
-                hash_.erase(hash_.find( cache_.back().first ));
-                cache_.pop_back();
+            // case: cache hit
+            if (hash_loc != hash_.end()) {
+                // promote
+                iterator cache_loc = cache_.emplace(cache_.begin(),
+                                                    key, hash_loc->second->second);
+                cache_.erase(hash_loc->second);
+                hash_loc->second = cache_loc;
+
+                return hash_loc->second->second;
+            } else { // case: cache miss
+                if (full()) {
+                    // remove the lowest priority page
+                    hash_.erase(hash_.find( cache_.back().first ));
+                    cache_.pop_back();
+                }
+                // insert new key at the the cache top
+                iterator cache_loc = cache_.emplace(cache_.begin(),
+                        key, pred(key));
+                // check emplace status
+                const auto [hast_loc_new, hash_emplace_status] =
+                    hash_.emplace(key, cache_loc);
+                if (!hash_emplace_status) {
+                    throw std::runtime_error("key already exists");
+                }
+
+                return cache_loc->second;
             }
-
-            const auto cache_loc = cache_.insert(
-                    cache_.begin(), {new_key, pred(new_key)}
-            );
-            hash_.insert({new_key, cache_loc});
-
-            return cache_loc;
         }
 
         bool full() const {
@@ -73,24 +84,8 @@ namespace caches {
             return it != hash_.end();
         }
 
-        // promote key as highest priority element
-        // PRECOND: key exists in the cache
-        void promote (const key_type& cached_key) {
-            auto hash_loc = hash_.find(cached_key);
-
-            hash_mapped_type cache_loc = cache_.insert(
-                    cache_.begin(), *(hash_loc->second)
-            );
-            cache_.erase(hash_loc->second);
-
-            hash_loc->second = cache_loc;
-        }
-
-        reference cached (const key_type& cached_key) {
-            auto cache_loc = hash_.find(cached_key)->second;
-            promote(cached_key);
-            return cache_loc->second;
-        }
+        // TODO: extract key
+        // TODO: extract (mapped_type)value = pred(key)
 
         void print() const {
             using std::cout;
